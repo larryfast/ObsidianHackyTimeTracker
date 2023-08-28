@@ -2,7 +2,9 @@ import { moment, App, MarkdownSectionInformation, ButtonComponent, TextComponent
 import { SimpleTimeTrackerSettings } from "./settings";
 
 export interface Tracker {
-    total: TotalTime; 
+    total: TotalTime;
+    editEnabled: boolean;
+    format: string;
     entries: Entry[];
 }
 
@@ -39,12 +41,17 @@ export async function saveTracker(tracker: Tracker, app: App, fileName: string, 
 export function loadTracker(json: string): Tracker {
     if (json) {
         try {
-            return JSON.parse(json);
+            // Forward Compatibility block
+            // As new fields are added, set default values here
+            let raw_record = JSON.parse(json);
+            raw_record.editEnabled = raw_record.editEnabled ?? true
+            raw_record.format = raw_record.format ?? "hh:mm"
+            return raw_record
         } catch (e) {
             console.log(`Failed to parse Tracker from ${json}`);
         }
     }
-    return {total: {name:"hello1", totalTime:1234},entries: [] };
+    return {total: {name:"hello1", totalTime:0}, editEnabled:true, format: "mm", entries: [] };
 }
 
 export function displayTracker(tracker: Tracker, element: HTMLElement, file: string, getSectionInfo: () => MarkdownSectionInformation, settings: SimpleTimeTrackerSettings): void {
@@ -52,12 +59,13 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     let table = element.createEl("table", {cls: "simple-time-tracker-table"});
     let row = table.createEl("tr");
 
-    // add start/stop controls
-    let entryButtons = row.createEl("td");
-    new ButtonComponent(entryButtons)
+    // add start/stop & edit controls
+    let entryButtonsTd = row.createEl("td");
+
+    new ButtonComponent(entryButtonsTd)
         .setClass("clickable-icon")
         .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
-        .setTooltip("HELLO!")
+        .setTooltip(`${running ? "StoMP" : "Start"}`)
         .onClick(async () => {
             if (running) {
                 endRunningEntry(tracker);
@@ -66,10 +74,23 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
             }
             await saveTracker(tracker, this.app, file, getSectionInfo());
             });
+
+    new ButtonComponent(entryButtonsTd)
+        .setClass("clickable-icon")
+        .setIcon(`${isEditEnabled(tracker) ? 'lucide-check' : 'lucide-pencil' }`)
+        .setTooltip("Edit Record")
+        .onClick(async() => {
+            if(isEditEnabled(tracker)) {
+                editModeSet(tracker,false)
+            } else {
+                editModeSet(tracker, true)
+            }
+        })
+    
     let total = row.createEl("td", {text: String(tracker.total.totalTime/1000)});
     row.createEl("td", {text: tracker.total.name});
           
-    // add timers
+    // Sum of timers
   
     setTotalTimeValue(tracker, total, settings);
     let intervalId = window.setInterval(() => {
@@ -81,6 +102,16 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
         setTotalTimeValue(tracker, total, settings);
     }, 1000);
 }
+
+export function isEditEnabled(tracker: Tracker) {
+    return tracker.editEnabled;
+}
+
+export function editModeSet(tracker: Tracker, val: boolean) {
+    tracker.editEnabled = val
+    return val
+}
+
 
 export function displayTrackerMostlyclean(tracker: Tracker, element: HTMLElement, file: string, getSectionInfo: () => MarkdownSectionInformation, settings: SimpleTimeTrackerSettings): void {
     // add start/stop controls
