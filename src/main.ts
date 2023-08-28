@@ -12,7 +12,7 @@ export default class SimpleTimeTrackerPlugin extends Plugin {
 
         this.addSettingTab(new SimpleTimeTrackerSettingsTab(this.app, this));
 
-        this.registerMarkdownCodeBlockProcessor("simple-time-tracker", (s, e, i) => {
+        this.registerMarkdownCodeBlockProcessor("my-time-tracker", (s, e, i) => {
             let tracker: Tracker = loadTracker(s);
             e.empty();
             displayTracker(tracker, e, i.sourcePath, () => i.getSectionInfo(e), this.settings);
@@ -22,7 +22,7 @@ export default class SimpleTimeTrackerPlugin extends Plugin {
             id: `insert`,
             name: `Insert Time Tracker`,
             editorCallback: (e, _) => {
-                e.replaceSelection("```simple-time-tracker\n```\n");
+                e.replaceSelection("```my-time-tracker\n```\n");
             }
         });
     }

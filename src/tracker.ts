@@ -2,7 +2,13 @@ import { moment, App, MarkdownSectionInformation, ButtonComponent, TextComponent
 import { SimpleTimeTrackerSettings } from "./settings";
 
 export interface Tracker {
+    total: TotalTime; 
     entries: Entry[];
+}
+
+export interface TotalTime {
+    name: string;
+    totalTime: number;
 }
 
 export interface Entry {
@@ -23,6 +29,8 @@ export async function saveTracker(tracker: Tracker, app: App, fileName: string, 
     let prev = lines.filter((_, i) => i <= section.lineStart).join("\n");
     let next = lines.filter((_, i) => i >= section.lineEnd).join("\n");
     // edit only the code block content, leave the rest untouched
+    // let totalTime: TotalTime = { name: "hello", totalTime: 1234 };
+    // tracker.total = totalTime;
     content = `${prev}\n${JSON.stringify(tracker)}\n${next}`;
 
     await app.vault.modify(file, content);
@@ -36,12 +44,49 @@ export function loadTracker(json: string): Tracker {
             console.log(`Failed to parse Tracker from ${json}`);
         }
     }
-    return {entries: []};
+    return {total: {name:"hello1", totalTime:1234},entries: [] };
 }
 
 export function displayTracker(tracker: Tracker, element: HTMLElement, file: string, getSectionInfo: () => MarkdownSectionInformation, settings: SimpleTimeTrackerSettings): void {
+    let running = isRunning(tracker);
+    let table = element.createEl("table", {cls: "simple-time-tracker-table"});
+    let row = table.createEl("tr");
+
+    // add start/stop controls
+    let entryButtons = row.createEl("td");
+    new ButtonComponent(entryButtons)
+        .setClass("clickable-icon")
+        .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
+        .setTooltip("HELLO!")
+        .onClick(async () => {
+            if (running) {
+                endRunningEntry(tracker);
+            } else {
+                startNewEntry(tracker, null);
+            }
+            await saveTracker(tracker, this.app, file, getSectionInfo());
+            });
+    let total = row.createEl("td", {text: String(tracker.total.totalTime/1000)});
+    row.createEl("td", {text: tracker.total.name});
+          
+    // add timers
+  
+    setTotalTimeValue(tracker, total, settings);
+    let intervalId = window.setInterval(() => {
+        // we delete the interval timer when the element is removed
+        if (!element.isConnected) {
+            window.clearInterval(intervalId);
+            return;
+        }
+        setTotalTimeValue(tracker, total, settings);
+    }, 1000);
+}
+
+export function displayTrackerMostlyclean(tracker: Tracker, element: HTMLElement, file: string, getSectionInfo: () => MarkdownSectionInformation, settings: SimpleTimeTrackerSettings): void {
     // add start/stop controls
     let running = isRunning(tracker);
+    let table = element.createEl("table", {cls: "simple-time-tracker-table"});
+    
     let btn = new ButtonComponent(element)
         .setClass("clickable-icon")
         .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
@@ -57,7 +102,10 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     btn.buttonEl.addClass("simple-time-tracker-btn");
     let newSegmentNameBox = new TextComponent(element)
         .setPlaceholder("Segment name")
-        .setDisabled(running);
+        .onChange( async (value) => {
+            tracker.total.name = value;
+        });
+        // .setDisabled(running);
     newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
 
     // add timers
@@ -127,6 +175,7 @@ function startNewEntry(tracker: Tracker, name: string): void {
 function endRunningEntry(tracker: Tracker): void {
     let entry = getRunningEntry(tracker.entries);
     entry.endTime = moment().unix();
+    tracker.total.totalTime = getTotalDuration(tracker.entries)
 }
 
 function removeEntry(entries: Entry[], toRemove: Entry): boolean {
@@ -184,6 +233,10 @@ function getTotalDuration(entries: Entry[]): number {
     for (let entry of entries)
         ret += getDuration(entry);
     return ret;
+}
+
+function setTotalTimeValue(tracker: Tracker, total: HTMLElement, settings: SimpleTimeTrackerSettings) {
+    total.setText(formatDuration(getTotalDuration(tracker.entries), settings));
 }
 
 function setCountdownValues(tracker: Tracker, current: HTMLElement, total: HTMLElement, currentDiv: HTMLDivElement, settings: SimpleTimeTrackerSettings) {

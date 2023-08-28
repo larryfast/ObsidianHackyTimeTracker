@@ -1,10 +1,10 @@
 {
-    "id": "simple-time-tracker",
-    "name": "Super Simple Time Tracker",
+    "id": "larry-time-tracker",
+    "name": "Larrys Time Tracker",
     "version": "0.1.7",
     "minAppVersion": "1.2.8",
     "description": "Multi-purpose time trackers for your notes!",
-    "author": "Ellpeck",
-    "authorUrl": "https://ellpeck.de",
+    "author": "Larry",
+    "authorUrl": "https://xyz.abc",
     "isDesktopOnly": false
 }
