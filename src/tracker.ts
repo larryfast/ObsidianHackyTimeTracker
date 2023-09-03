@@ -20,6 +20,7 @@ export interface Entry {
     subEntries: Entry[];
 }
 
+
 export async function saveTracker(tracker: Tracker, app: App, fileName: string, section: MarkdownSectionInformation): Promise<void> {
     let file = app.vault.getAbstractFileByPath(fileName) as TFile;
     if (!file)
@@ -62,6 +63,14 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     // add start/stop & edit controls
     let entryButtonsTd = row.createEl("td");
 
+    let chgTotalTimeBox = null as TextComponent
+        // make the parts of setTotalTime
+        // available to the GUI parts that need it
+        // HACK - cuz I don't know how to do it right
+        // Problem: how do I get the 'final' value from a TextComponent
+        // IE. when focus moves away from the object
+        // Workaround: pick up the value when EditEnabled=>false
+
     new ButtonComponent(entryButtonsTd)
         .setClass("clickable-icon")
         .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
@@ -81,14 +90,18 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
         .setTooltip("Edit Record")
         .onClick(async() => {
             if(isEditEnabled(tracker)) {
-                editModeSet(tracker,false)
+                editModeSet(tracker,false);
+                // When edit mode is cleared take other actions    
+                // TODO setup new Total Time 
+                // need to wrangle access to the data entry field
+                chgTotalTime(tracker, chgTotalTimeBox);
             } else {
                 editModeSet(tracker, true)
             }
             await saveTracker(tracker, this.app, file, getSectionInfo());
         })
     
-    let total = row.createEl("td", {text: String(tracker.total.totalTime/1000)});
+    let total = row.createEl("td", {text: String(tracker.total.totalTime)});
     row.createEl("td", {text: tracker.total.name});
           
     // Sum of timers
@@ -104,6 +117,13 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     }, 1000);
     
     if (tracker.entries.length > 0 && tracker.editEnabled) {
+
+        chgTotalTimeBox = new TextComponent(element)
+            .setPlaceholder("Set Total Time")
+            .setDisabled(running)
+            ;
+        // newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
+
 
         let newSegmentNameBox = new TextComponent(element)
             .setPlaceholder("Segment name")
@@ -142,77 +162,6 @@ export function editModeSet(tracker: Tracker, val: boolean) {
     return val
 }
 
-
-export function displayTrackerMostlyclean(tracker: Tracker, element: HTMLElement, file: string, getSectionInfo: () => MarkdownSectionInformation, settings: SimpleTimeTrackerSettings): void {
-    // add start/stop controls
-    let running = isRunning(tracker);
-    let table = element.createEl("table", {cls: "simple-time-tracker-table"});
-    
-    let btn = new ButtonComponent(element)
-        .setClass("clickable-icon")
-        .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
-        .setTooltip(running ? "End" : "Start")
-        .onClick(async () => {
-            if (running) {
-                endRunningEntry(tracker);
-            } else {
-                startNewEntry(tracker, newSegmentNameBox.getValue());
-            }
-            await saveTracker(tracker, this.app, file, getSectionInfo());
-        });
-    btn.buttonEl.addClass("simple-time-tracker-btn");
-    let newSegmentNameBox = new TextComponent(element)
-        .setPlaceholder("Segment name")
-        .onChange( async (value) => {
-            tracker.total.name = value;
-        });
-        // .setDisabled(running);
-    newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
-
-    // add timers
-    let timer = element.createDiv({cls: "simple-time-tracker-timers"});
-    let currentDiv = timer.createEl("div", {cls: "simple-time-tracker-timer"});
-    let current = currentDiv.createEl("span", {cls: "simple-time-tracker-timer-time"});
-    currentDiv.createEl("span", {text: "Current"});
-    let totalDiv = timer.createEl("div", {cls: "simple-time-tracker-timer"});
-    let total = totalDiv.createEl("span", {cls: "simple-time-tracker-timer-time", text: "0s"});
-    totalDiv.createEl("span", {text: "Total"});
-
-    if (tracker.entries.length > 0) {
-        // add table
-        let table = element.createEl("table", {cls: "simple-time-tracker-table"});
-        table.createEl("tr").append(
-            createEl("th", {text: "Segment"}),
-            createEl("th", {text: "Start time"}),
-            createEl("th", {text: "End time"}),
-            createEl("th", {text: "Duration"}),
-            createEl("th"));
-
-        for (let entry of tracker.entries)
-            addEditableTableRow(tracker, entry, table, newSegmentNameBox, running, file, getSectionInfo, settings, 0);
-
-        // add copy buttons
-        let buttons = element.createEl("div", {cls: "simple-time-tracker-bottom"});
-        new ButtonComponent(buttons)
-            .setButtonText("Copy as table")
-            .onClick(() => navigator.clipboard.writeText(createMarkdownTable(tracker, settings)));
-        new ButtonComponent(buttons)
-            .setButtonText("Copy as CSV")
-            .onClick(() => navigator.clipboard.writeText(createCsv(tracker, settings)));
-    }
-
-
-    setCountdownValues(tracker, current, total, currentDiv, settings);
-    let intervalId = window.setInterval(() => {
-        // we delete the interval timer when the element is removed
-        if (!element.isConnected) {
-            window.clearInterval(intervalId);
-            return;
-        }
-        setCountdownValues(tracker, current, total, currentDiv, settings);
-    }, 1000);
-}
-
 function startSubEntry(entry: Entry, name: string) {
     // if this entry is not split yet, we add its time as a sub-entry instead
     if (!entry.subEntries) {
@@ -236,21 +185,40 @@ function startNewEntry(tracker: Tracker, name: string): void {
 function endRunningEntry(tracker: Tracker): void {
     let entry = getRunningEntry(tracker.entries);
     entry.endTime = moment().unix();
-    tracker.total.totalTime = getTotalDuration(tracker.entries)
+    tracker.total.totalTime = getTotalDuration(tracker.entries)/1000
 }
 
-function setTotalTime(tracker: Tracker, desiredDurationSecs: number): void {
-    // Adjust Total Time by
+function chgTotalTime(tracker: Tracker, chgTotalTimeBox: TextComponent ): void {
+    if( chgTotalTimeBox == null ) {
+        console.log('chgTimeBox Undefined')
+        return;
+    }
+    let desiredDurationStr = chgTotalTimeBox.getValue();
+    if( 0 === desiredDurationStr.length ) {
+        console.log('chgTimeBox null string')
+        return;
+    }
+    let desiredDurationSecs = Number(desiredDurationStr);
+    console.log('desiredTotalTime=',desiredDurationSecs)
+    if( isNaN(desiredDurationSecs) ) {
+        console.log('chgTimeBox NaN: ${desiredDurationStr} : ',desiredDurationStr)
+        return;
+    }
+    console.log('desiredTotalTime=',desiredDurationSecs)
     // creating a new Entry and setting it's duration
-    // to adjust TotalTime to the desired value
     startNewEntry(tracker, 'Manual');
     let entry = getRunningEntry(tracker.entries);
     entry.startTime = moment().unix();
     entry.endTime = entry.startTime;
+
+    // Adjust Total Time by
+    // by adjusting StartTime of the new tracker.entry
     // Calc desired delta-T to get desired TotalTime
-    let currentTotalTime = getTotalDuration(tracker.entries);
+    let currentTotalTime = getTotalDuration(tracker.entries)/1000;
     let deltaTime = desiredDurationSecs - currentTotalTime;
     entry.startTime = entry.endTime - deltaTime;
+    tracker.total.totalTime = getTotalDuration(tracker.entries)/1000
+    console.log('adjusted Time info: oldTot=', currentTotalTime,' deltaT=', deltaTime, ' startT=',entry.startTime)
 }
 
 function removeEntry(entries: Entry[], toRemove: Entry): boolean {

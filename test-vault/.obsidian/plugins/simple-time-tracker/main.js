@@ -156,6 +156,7 @@ function displayTracker(tracker, element, file, getSectionInfo, settings) {
   let table = element.createEl("table", { cls: "simple-time-tracker-table" });
   let row = table.createEl("tr");
   let entryButtonsTd = row.createEl("td");
+  let chgTotalTimeBox = null;
   new import_obsidian2.ButtonComponent(entryButtonsTd).setClass("clickable-icon").setIcon(`lucide-${running ? "stop" : "play"}-circle`).setTooltip(`${running ? "Stop" : "Start"}`).onClick(() => __async(this, null, function* () {
     if (running) {
       endRunningEntry(tracker);
@@ -167,12 +168,13 @@ function displayTracker(tracker, element, file, getSectionInfo, settings) {
   new import_obsidian2.ButtonComponent(entryButtonsTd).setClass("clickable-icon").setIcon(`${isEditEnabled(tracker) ? "lucide-check" : "lucide-pencil"}`).setTooltip("Edit Record").onClick(() => __async(this, null, function* () {
     if (isEditEnabled(tracker)) {
       editModeSet(tracker, false);
+      chgTotalTime(tracker, chgTotalTimeBox);
     } else {
       editModeSet(tracker, true);
     }
     yield saveTracker(tracker, this.app, file, getSectionInfo());
   }));
-  let total = row.createEl("td", { text: String(tracker.total.totalTime / 1e3) });
+  let total = row.createEl("td", { text: String(tracker.total.totalTime) });
   row.createEl("td", { text: tracker.total.name });
   setTotalTimeValue(tracker, total, settings);
   let intervalId = window.setInterval(() => {
@@ -183,6 +185,7 @@ function displayTracker(tracker, element, file, getSectionInfo, settings) {
     setTotalTimeValue(tracker, total, settings);
   }, 1e3);
   if (tracker.entries.length > 0 && tracker.editEnabled) {
+    chgTotalTimeBox = new import_obsidian2.TextComponent(element).setPlaceholder("Set Total Time").setDisabled(running);
     let newSegmentNameBox = new import_obsidian2.TextComponent(element).setPlaceholder("Segment name").setDisabled(running);
     newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
     let table2 = element.createEl("table", { cls: "simple-time-tracker-table" });
@@ -220,7 +223,34 @@ function startNewEntry(tracker, name) {
 function endRunningEntry(tracker) {
   let entry = getRunningEntry(tracker.entries);
   entry.endTime = (0, import_obsidian2.moment)().unix();
-  tracker.total.totalTime = getTotalDuration(tracker.entries);
+  tracker.total.totalTime = getTotalDuration(tracker.entries) / 1e3;
+}
+function chgTotalTime(tracker, chgTotalTimeBox) {
+  if (chgTotalTimeBox == null) {
+    console.log("chgTimeBox Undefined");
+    return;
+  }
+  let desiredDurationStr = chgTotalTimeBox.getValue();
+  if (desiredDurationStr.length === 0) {
+    console.log("chgTimeBox null string");
+    return;
+  }
+  let desiredDurationSecs = Number(desiredDurationStr);
+  console.log("desiredTotalTime=", desiredDurationSecs);
+  if (isNaN(desiredDurationSecs)) {
+    console.log("chgTimeBox NaN: ${desiredDurationStr} : ", desiredDurationStr);
+    return;
+  }
+  console.log("desiredTotalTime=", desiredDurationSecs);
+  startNewEntry(tracker, "Manual");
+  let entry = getRunningEntry(tracker.entries);
+  entry.startTime = (0, import_obsidian2.moment)().unix();
+  entry.endTime = entry.startTime;
+  let currentTotalTime = getTotalDuration(tracker.entries) / 1e3;
+  let deltaTime = desiredDurationSecs - currentTotalTime;
+  entry.startTime = entry.endTime - deltaTime;
+  tracker.total.totalTime = getTotalDuration(tracker.entries) / 1e3;
+  console.log("adjusted Time info: oldTot=", currentTotalTime, " deltaT=", deltaTime, " startT=", entry.startTime);
 }
 function removeEntry(entries, toRemove) {
   if (entries.contains(toRemove)) {
