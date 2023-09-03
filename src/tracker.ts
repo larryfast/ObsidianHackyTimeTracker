@@ -65,7 +65,7 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     new ButtonComponent(entryButtonsTd)
         .setClass("clickable-icon")
         .setIcon(`lucide-${running ? "stop" : "play"}-circle`)
-        .setTooltip(`${running ? "StoMP" : "Start"}`)
+        .setTooltip(`${running ? "Stop" : "Start"}`)
         .onClick(async () => {
             if (running) {
                 endRunningEntry(tracker);
@@ -85,6 +85,7 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
             } else {
                 editModeSet(tracker, true)
             }
+            await saveTracker(tracker, this.app, file, getSectionInfo());
         })
     
     let total = row.createEl("td", {text: String(tracker.total.totalTime/1000)});
@@ -101,6 +102,35 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
         }
         setTotalTimeValue(tracker, total, settings);
     }, 1000);
+    
+    if (tracker.entries.length > 0 && tracker.editEnabled) {
+
+        let newSegmentNameBox = new TextComponent(element)
+            .setPlaceholder("Segment name")
+            .setDisabled(running);
+        newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
+
+        // add table
+        let table = element.createEl("table", {cls: "simple-time-tracker-table"});
+        table.createEl("tr").append(
+            createEl("th", {text: "Segment"}),
+            createEl("th", {text: "Start time"}),
+            createEl("th", {text: "End time"}),
+            createEl("th", {text: "Duration"}),
+            createEl("th"));
+
+        for (let entry of tracker.entries)
+            addEditableTableRow(tracker, entry, table, newSegmentNameBox, running, file, getSectionInfo, settings, 0);
+
+        // add copy buttons
+        let buttons = element.createEl("div", {cls: "simple-time-tracker-bottom"});
+        new ButtonComponent(buttons)
+            .setButtonText("Copy as table")
+            .onClick(() => navigator.clipboard.writeText(createMarkdownTable(tracker, settings)));
+        new ButtonComponent(buttons)
+            .setButtonText("Copy as CSV")
+            .onClick(() => navigator.clipboard.writeText(createCsv(tracker, settings)));
+    }
 }
 
 export function isEditEnabled(tracker: Tracker) {
@@ -207,6 +237,20 @@ function endRunningEntry(tracker: Tracker): void {
     let entry = getRunningEntry(tracker.entries);
     entry.endTime = moment().unix();
     tracker.total.totalTime = getTotalDuration(tracker.entries)
+}
+
+function setTotalTime(tracker: Tracker, desiredDurationSecs: number): void {
+    // Adjust Total Time by
+    // creating a new Entry and setting it's duration
+    // to adjust TotalTime to the desired value
+    startNewEntry(tracker, 'Manual');
+    let entry = getRunningEntry(tracker.entries);
+    entry.startTime = moment().unix();
+    entry.endTime = entry.startTime;
+    // Calc desired delta-T to get desired TotalTime
+    let currentTotalTime = getTotalDuration(tracker.entries);
+    let deltaTime = desiredDurationSecs - currentTotalTime;
+    entry.startTime = entry.endTime - deltaTime;
 }
 
 function removeEntry(entries: Entry[], toRemove: Entry): boolean {

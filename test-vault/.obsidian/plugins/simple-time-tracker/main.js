@@ -4,10 +4,27 @@ if you want to view the source, please visit the github repository of this plugi
 */
 var __create = Object.create;
 var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
 var __markAsModule = (target) => __defProp(target, "__esModule", { value: true });
 var __export = (target, all) => {
   __markAsModule(target);
@@ -121,25 +138,37 @@ ${next}`;
   });
 }
 function loadTracker(json) {
+  var _a, _b;
   if (json) {
     try {
-      return JSON.parse(json);
+      let raw_record = JSON.parse(json);
+      raw_record.editEnabled = (_a = raw_record.editEnabled) != null ? _a : true;
+      raw_record.format = (_b = raw_record.format) != null ? _b : "hh:mm";
+      return raw_record;
     } catch (e) {
       console.log(`Failed to parse Tracker from ${json}`);
     }
   }
-  return { total: { name: "hello1", totalTime: 1234 }, entries: [] };
+  return { total: { name: "hello1", totalTime: 0 }, editEnabled: true, format: "mm", entries: [] };
 }
 function displayTracker(tracker, element, file, getSectionInfo, settings) {
   let running = isRunning(tracker);
   let table = element.createEl("table", { cls: "simple-time-tracker-table" });
   let row = table.createEl("tr");
-  let entryButtons = row.createEl("td");
-  new import_obsidian2.ButtonComponent(entryButtons).setClass("clickable-icon").setIcon(`lucide-${running ? "stop" : "play"}-circle`).setTooltip("HELLO!").onClick(() => __async(this, null, function* () {
+  let entryButtonsTd = row.createEl("td");
+  new import_obsidian2.ButtonComponent(entryButtonsTd).setClass("clickable-icon").setIcon(`lucide-${running ? "stop" : "play"}-circle`).setTooltip(`${running ? "Stop" : "Start"}`).onClick(() => __async(this, null, function* () {
     if (running) {
       endRunningEntry(tracker);
     } else {
       startNewEntry(tracker, null);
+    }
+    yield saveTracker(tracker, this.app, file, getSectionInfo());
+  }));
+  new import_obsidian2.ButtonComponent(entryButtonsTd).setClass("clickable-icon").setIcon(`${isEditEnabled(tracker) ? "lucide-check" : "lucide-pencil"}`).setTooltip("Edit Record").onClick(() => __async(this, null, function* () {
+    if (isEditEnabled(tracker)) {
+      editModeSet(tracker, false);
+    } else {
+      editModeSet(tracker, true);
     }
     yield saveTracker(tracker, this.app, file, getSectionInfo());
   }));
@@ -153,6 +182,34 @@ function displayTracker(tracker, element, file, getSectionInfo, settings) {
     }
     setTotalTimeValue(tracker, total, settings);
   }, 1e3);
+  if (tracker.entries.length > 0 && tracker.editEnabled) {
+    let newSegmentNameBox = new import_obsidian2.TextComponent(element).setPlaceholder("Segment name").setDisabled(running);
+    newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
+    let table2 = element.createEl("table", { cls: "simple-time-tracker-table" });
+    table2.createEl("tr").append(createEl("th", { text: "Segment" }), createEl("th", { text: "Start time" }), createEl("th", { text: "End time" }), createEl("th", { text: "Duration" }), createEl("th"));
+    for (let entry of tracker.entries)
+      addEditableTableRow(tracker, entry, table2, newSegmentNameBox, running, file, getSectionInfo, settings, 0);
+    let buttons = element.createEl("div", { cls: "simple-time-tracker-bottom" });
+    new import_obsidian2.ButtonComponent(buttons).setButtonText("Copy as table").onClick(() => navigator.clipboard.writeText(createMarkdownTable(tracker, settings)));
+    new import_obsidian2.ButtonComponent(buttons).setButtonText("Copy as CSV").onClick(() => navigator.clipboard.writeText(createCsv(tracker, settings)));
+  }
+}
+function isEditEnabled(tracker) {
+  return tracker.editEnabled;
+}
+function editModeSet(tracker, val) {
+  tracker.editEnabled = val;
+  return val;
+}
+function startSubEntry(entry, name) {
+  if (!entry.subEntries) {
+    entry.subEntries = [__spreadProps(__spreadValues({}, entry), { name: `Part 1` })];
+    entry.startTime = null;
+    entry.endTime = null;
+  }
+  if (!name)
+    name = `Part ${entry.subEntries.length + 1}`;
+  entry.subEntries.push({ name, startTime: (0, import_obsidian2.moment)().unix(), endTime: null, subEntries: null });
 }
 function startNewEntry(tracker, name) {
   if (!name)
@@ -164,6 +221,25 @@ function endRunningEntry(tracker) {
   let entry = getRunningEntry(tracker.entries);
   entry.endTime = (0, import_obsidian2.moment)().unix();
   tracker.total.totalTime = getTotalDuration(tracker.entries);
+}
+function removeEntry(entries, toRemove) {
+  if (entries.contains(toRemove)) {
+    entries.remove(toRemove);
+    return true;
+  } else {
+    for (let entry of entries) {
+      if (entry.subEntries && removeEntry(entry.subEntries, toRemove)) {
+        if (entry.subEntries.length == 1) {
+          let single = entry.subEntries[0];
+          entry.startTime = single.startTime;
+          entry.endTime = single.endTime;
+          entry.subEntries = null;
+        }
+        return true;
+      }
+    }
+  }
+  return false;
 }
 function isRunning(tracker) {
   return !!getRunningEntry(tracker.entries);
@@ -198,6 +274,9 @@ function getTotalDuration(entries) {
 function setTotalTimeValue(tracker, total, settings) {
   total.setText(formatDuration(getTotalDuration(tracker.entries), settings));
 }
+function formatTimestamp(timestamp, settings) {
+  return import_obsidian2.moment.unix(timestamp).format(settings.timestampFormat);
+}
 function formatDuration(totalTime, settings) {
   let ret = "";
   let duration = import_obsidian2.moment.duration(totalTime);
@@ -219,6 +298,87 @@ function formatDuration(totalTime, settings) {
     ret += duration.minutes() + "m ";
   ret += duration.seconds() + "s";
   return ret;
+}
+function createMarkdownTable(tracker, settings) {
+  let table = [["Segment", "Start time", "End time", "Duration"]];
+  for (let entry of tracker.entries)
+    table.push(...createTableSection(entry, settings));
+  table.push(["**Total**", "", "", `**${formatDuration(getTotalDuration(tracker.entries), settings)}**`]);
+  let ret = "";
+  let widths = Array.from(Array(4).keys()).map((i) => Math.max(...table.map((a) => a[i].length)));
+  for (let r = 0; r < table.length; r++) {
+    if (r == 1)
+      ret += "| " + Array.from(Array(4).keys()).map((i) => "-".repeat(widths[i])).join(" | ") + " |\n";
+    let row = [];
+    for (let i = 0; i < 4; i++)
+      row.push(table[r][i].padEnd(widths[i], " "));
+    ret += "| " + row.join(" | ") + " |\n";
+  }
+  return ret;
+}
+function createCsv(tracker, settings) {
+  let ret = "";
+  for (let entry of tracker.entries) {
+    for (let row of createTableSection(entry, settings))
+      ret += row.join(settings.csvDelimiter) + "\n";
+  }
+  return ret;
+}
+function createTableSection(entry, settings) {
+  let ret = [[
+    entry.name,
+    entry.startTime ? formatTimestamp(entry.startTime, settings) : "",
+    entry.endTime ? formatTimestamp(entry.endTime, settings) : "",
+    entry.endTime || entry.subEntries ? formatDuration(getDuration(entry), settings) : ""
+  ]];
+  if (entry.subEntries) {
+    for (let sub of entry.subEntries)
+      ret.push(...createTableSection(sub, settings));
+  }
+  return ret;
+}
+function addEditableTableRow(tracker, entry, table, newSegmentNameBox, running, file, getSectionInfo, settings, indent) {
+  let row = table.createEl("tr");
+  let name = row.createEl("td");
+  let namePar = name.createEl("span", { text: entry.name });
+  namePar.style.marginLeft = `${indent}em`;
+  let nameBox = new import_obsidian2.TextComponent(name).setValue(entry.name);
+  nameBox.inputEl.hidden = true;
+  row.createEl("td", { text: entry.startTime ? formatTimestamp(entry.startTime, settings) : "" });
+  row.createEl("td", { text: entry.endTime ? formatTimestamp(entry.endTime, settings) : "" });
+  row.createEl("td", { text: entry.endTime || entry.subEntries ? formatDuration(getDuration(entry), settings) : "" });
+  let entryButtons = row.createEl("td");
+  if (!running) {
+    new import_obsidian2.ButtonComponent(entryButtons).setClass("clickable-icon").setIcon(`lucide-play`).setTooltip("Continue").onClick(() => __async(this, null, function* () {
+      startSubEntry(entry, newSegmentNameBox.getValue());
+      yield saveTracker(tracker, this.app, file, getSectionInfo());
+    }));
+  }
+  let editButton = new import_obsidian2.ButtonComponent(entryButtons).setClass("clickable-icon").setTooltip("Edit").setIcon("lucide-pencil").onClick(() => __async(this, null, function* () {
+    if (namePar.hidden) {
+      namePar.hidden = false;
+      nameBox.inputEl.hidden = true;
+      editButton.setIcon("lucide-pencil");
+      if (nameBox.getValue()) {
+        entry.name = nameBox.getValue();
+        namePar.setText(entry.name);
+        yield saveTracker(tracker, this.app, file, getSectionInfo());
+      }
+    } else {
+      namePar.hidden = true;
+      nameBox.inputEl.hidden = false;
+      nameBox.setValue(entry.name);
+      editButton.setIcon("lucide-check");
+    }
+  }));
+  new import_obsidian2.ButtonComponent(entryButtons).setClass("clickable-icon").setTooltip("Remove").setIcon("lucide-trash").onClick(() => __async(this, null, function* () {
+    removeEntry(tracker.entries, entry);
+    yield saveTracker(tracker, this.app, file, getSectionInfo());
+  }));
+  if (entry.subEntries) {
+    for (let sub of entry.subEntries)
+      addEditableTableRow(tracker, sub, table, newSegmentNameBox, running, file, getSectionInfo, settings, indent + 1);
+  }
 }
 
 // src/main.ts
