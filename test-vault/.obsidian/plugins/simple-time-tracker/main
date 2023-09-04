@@ -185,7 +185,8 @@ function displayTracker(tracker, element, file, getSectionInfo, settings) {
     setTotalTimeValue(tracker, total, settings);
   }, 1e3);
   if (tracker.entries.length > 0 && tracker.editEnabled) {
-    chgTotalTimeBox = new import_obsidian2.TextComponent(element).setPlaceholder("Set Total Time").setDisabled(running);
+    chgTotalTimeBox = new import_obsidian2.TextComponent(element).setPlaceholder("Set Total Time in Minutes").setDisabled(running);
+    chgTotalTimeBox.inputEl.addClass("simple-time-tracker-txt");
     let newSegmentNameBox = new import_obsidian2.TextComponent(element).setPlaceholder("Segment name").setDisabled(running);
     newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
     let table2 = element.createEl("table", { cls: "simple-time-tracker-table" });
@@ -235,19 +236,19 @@ function chgTotalTime(tracker, chgTotalTimeBox) {
     console.log("chgTimeBox null string");
     return;
   }
-  let desiredDurationSecs = Number(desiredDurationStr);
-  console.log("desiredTotalTime=", desiredDurationSecs);
-  if (isNaN(desiredDurationSecs)) {
+  let desiredDurationMins = Number(desiredDurationStr);
+  console.log("desiredTotalTime=", desiredDurationMins);
+  if (isNaN(desiredDurationMins)) {
     console.log("chgTimeBox NaN: ${desiredDurationStr} : ", desiredDurationStr);
     return;
   }
-  console.log("desiredTotalTime=", desiredDurationSecs);
+  console.log("desiredTotalTime=", desiredDurationMins);
   startNewEntry(tracker, "Manual");
   let entry = getRunningEntry(tracker.entries);
   entry.startTime = (0, import_obsidian2.moment)().unix();
   entry.endTime = entry.startTime;
   let currentTotalTime = getTotalDuration(tracker.entries) / 1e3;
-  let deltaTime = desiredDurationSecs - currentTotalTime;
+  let deltaTime = desiredDurationMins * 60 - currentTotalTime;
   entry.startTime = entry.endTime - deltaTime;
   tracker.total.totalTime = getTotalDuration(tracker.entries) / 1e3;
   console.log("adjusted Time info: oldTot=", currentTotalTime, " deltaT=", deltaTime, " startT=", entry.startTime);
@@ -310,6 +311,7 @@ function formatTimestamp(timestamp, settings) {
 function formatDuration(totalTime, settings) {
   let ret = "";
   let duration = import_obsidian2.moment.duration(totalTime);
+  return duration.asMinutes().toFixed(2) + "m";
   let hours;
   if (settings.fineGrainedDurations) {
     if (duration.years() > 0)

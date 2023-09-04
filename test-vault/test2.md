@@ -1,7 +1,7 @@
 
 
 ```my-time-tracker
-{"total":{"name":"hello1","totalTime":2},"entries":[{"name":"Segment 10","startTime":1693251697,"endTime":1693251699,"subEntries":null},{"name":"Manual","startTime":1693747710,"endTime":1693747710,"subEntries":null},{"name":"Manual","startTime":1693748808,"endTime":1693748806,"subEntries":null},{"name":"Manual","startTime":1693749400,"endTime":1693749475,"subEntries":null},{"name":"Manual","startTime":1693749557,"endTime":1693749484,"subEntries":null}],"editEnabled":true,"format":"hh:mm"}
+{"total":{"name":"hello1","totalTime":180},"entries":[{"name":"Segment 10","startTime":1693251697,"endTime":1693251699,"subEntries":null},{"name":"Manual","startTime":1693747710,"endTime":1693747710,"subEntries":null},{"name":"Manual","startTime":1693748808,"endTime":1693748806,"subEntries":null},{"name":"Manual","startTime":1693749400,"endTime":1693749475,"subEntries":null},{"name":"Manual","startTime":1693749557,"endTime":1693749484,"subEntries":null},{"name":"Manual","startTime":1693858215,"endTime":1693858393,"subEntries":null}],"editEnabled":false,"format":"hh:mm"}
 ```
 .sdaf
 ```my-time-tracker

@@ -119,10 +119,10 @@ export function displayTracker(tracker: Tracker, element: HTMLElement, file: str
     if (tracker.entries.length > 0 && tracker.editEnabled) {
 
         chgTotalTimeBox = new TextComponent(element)
-            .setPlaceholder("Set Total Time")
+            .setPlaceholder("Set Total Time in Minutes")
             .setDisabled(running)
             ;
-        // newSegmentNameBox.inputEl.addClass("simple-time-tracker-txt");
+        chgTotalTimeBox.inputEl.addClass("simple-time-tracker-txt");
 
 
         let newSegmentNameBox = new TextComponent(element)
@@ -198,13 +198,13 @@ function chgTotalTime(tracker: Tracker, chgTotalTimeBox: TextComponent ): void {
         console.log('chgTimeBox null string')
         return;
     }
-    let desiredDurationSecs = Number(desiredDurationStr);
-    console.log('desiredTotalTime=',desiredDurationSecs)
-    if( isNaN(desiredDurationSecs) ) {
+    let desiredDurationMins = Number(desiredDurationStr);
+    console.log('desiredTotalTime=',desiredDurationMins)
+    if( isNaN(desiredDurationMins) ) {
         console.log('chgTimeBox NaN: ${desiredDurationStr} : ',desiredDurationStr)
         return;
     }
-    console.log('desiredTotalTime=',desiredDurationSecs)
+    console.log('desiredTotalTime=',desiredDurationMins)
     // creating a new Entry and setting it's duration
     startNewEntry(tracker, 'Manual');
     let entry = getRunningEntry(tracker.entries);
@@ -212,10 +212,10 @@ function chgTotalTime(tracker: Tracker, chgTotalTimeBox: TextComponent ): void {
     entry.endTime = entry.startTime;
 
     // Adjust Total Time by
-    // by adjusting StartTime of the new tracker.entry
+    // by changing StartTime of the new tracker.entry
     // Calc desired delta-T to get desired TotalTime
     let currentTotalTime = getTotalDuration(tracker.entries)/1000;
-    let deltaTime = desiredDurationSecs - currentTotalTime;
+    let deltaTime = desiredDurationMins*60 - currentTotalTime;
     entry.startTime = entry.endTime - deltaTime;
     tracker.total.totalTime = getTotalDuration(tracker.entries)/1000
     console.log('adjusted Time info: oldTot=', currentTotalTime,' deltaT=', deltaTime, ' startT=',entry.startTime)
@@ -300,6 +300,8 @@ function formatTimestamp(timestamp: number, settings: SimpleTimeTrackerSettings)
 function formatDuration(totalTime: number, settings: SimpleTimeTrackerSettings): string {
     let ret = "";
     let duration = moment.duration(totalTime);
+    return duration.asMinutes().toFixed(2) + "m";
+
     let hours: number;
     if (settings.fineGrainedDurations) {
         if (duration.years() > 0)
